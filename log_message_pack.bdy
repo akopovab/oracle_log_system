@@ -75,7 +75,7 @@ create or replace package body log_message_pack is
   -- удаление пачками по типу сообщений с указанием дней за сколько оставить
   procedure clean_message_by_type_(p_message_type     log_message.message_type%type
                                   ,p_records_ttl_days pls_integer) is
-    v_high_value_date date;
+    v_high_value_date timestamp;
     v_high_value_type varchar2(1);
   begin
     for part in (select s.partition_name, s.high_value, sp.subpartition_name, sp.high_value as sub_partition_high_value
@@ -83,12 +83,12 @@ create or replace package body log_message_pack is
                    left join user_tab_subpartitions sp on sp.partition_name = s.partition_name
                                                       and sp.table_name = s.table_name
                   where lower(s.table_name) = lower(c_table_name)) loop
-      v_high_value_date := to_date(regexp_substr(substr(part.high_value, 1, 100), '([[:digit:]]{4})-([[:digit:]]{2})-([[:digit:]]{2})'), 'YYYY-MM-DD');
+      execute immediate 'select '||substr(part.high_value, 1, 100)||' from dual' into v_high_value_date;
       v_high_value_type := substr(part.sub_partition_high_value, 2, 1);
-      continue when v_high_value_date > trunc(sysdate) - p_records_ttl_days;
+      continue when trunc(cast(v_high_value_date as date)) > trunc(sysdate) - p_records_ttl_days;
       continue when v_high_value_type != p_message_type;
       if v_high_value_type = c_error_type then
-        execute immediate 'alter table ' || c_table_name || ' drop partition ' || part.partition_name;        
+        execute immediate 'alter table ' || c_table_name || ' drop partition '||part.partition_name;      
       else
         execute immediate 'alter table ' || c_table_name || ' drop subpartition ' || part.subpartition_name;
       end if;
