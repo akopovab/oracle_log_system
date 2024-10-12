@@ -9,6 +9,7 @@ create or replace package log_message_pack is
   c_info_type    constant log_message.message_type%type := 'I';
   c_warning_type constant log_message.message_type%type := 'W';
   c_error_type   constant log_message.message_type%type := 'E';
+  c_table_name   constant user_tables.table_name%type := 'log_message';
 
   -- логирование информационного сообщения
   procedure info(p_message        log_message.message%type
@@ -31,4 +32,3 @@ create or replace package log_message_pack is
   procedure clear_messages;
 
 end;
-/

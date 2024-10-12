@@ -5,7 +5,6 @@ create or replace package body log_message_pack is
   g_sid         v$session.sid%type;
   g_pid         v$process.pid%type;
   g_serial#     v$process.serial#%type;
-  c_delete_size constant pls_integer := 10000;
 
   procedure log_message_(p_message        log_message.message%type
                         ,p_message_source log_message.message_source%type
@@ -76,17 +75,23 @@ create or replace package body log_message_pack is
   -- удаление пачками по типу сообщений с указанием дней за сколько оставить
   procedure clean_message_by_type_(p_message_type     log_message.message_type%type
                                   ,p_records_ttl_days pls_integer) is
-    v_delete_next boolean := true;
+    v_high_value_date date;
+    v_high_value_type varchar2(1);
   begin
-    while v_delete_next loop
-      delete log_message t
-       where t.dtime < trunc(sysdate) - p_records_ttl_days
-         and t.message_type = p_message_type
-         and rownum <= c_delete_size;
-    
-      v_delete_next := sql%rowcount >= c_delete_size;
-    
-      commit;
+    for part in (select s.partition_name, s.high_value, sp.subpartition_name, sp.high_value as sub_partition_high_value
+                   from user_tab_partitions s
+                   left join user_tab_subpartitions sp on sp.partition_name = s.partition_name
+                                                      and sp.table_name = s.table_name
+                  where lower(s.table_name) = lower(c_table_name)) loop
+      v_high_value_date := to_date(regexp_substr(substr(part.high_value, 1, 100), '([[:digit:]]{4})-([[:digit:]]{2})-([[:digit:]]{2})'), 'YYYY-MM-DD');
+      v_high_value_type := substr(part.sub_partition_high_value, 2, 1);
+      continue when v_high_value_date > trunc(sysdate) - p_records_ttl_days;
+      continue when v_high_value_type != p_message_type;
+      if v_high_value_type = c_error_type then
+        execute immediate 'alter table ' || c_table_name || ' drop partition ' || part.partition_name;        
+      else
+        execute immediate 'alter table ' || c_table_name || ' drop subpartition ' || part.subpartition_name;
+      end if;
     end loop;
   end;
 
@@ -110,4 +115,3 @@ begin
       on s.paddr = p.addr
    where s.sid = g_sid;
 end;
-/
