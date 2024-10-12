@@ -23,10 +23,9 @@ create table log_message
   pid            number(10) not null,
   osuser         varchar2(200 char) not null,
   oracle_user    varchar2(200 char) not null,
-  call_stack     varchar2(4000 char) not null,
-  log_date       date as (trunc(cast(dtime as date)))
+  call_stack     varchar2(4000 char) not null
 )
-partition by range(log_date)
+partition by range(dtime)
 interval(numtodsinterval(1, 'DAY'))
 subpartition by list (message_type)
 subpartition template(
@@ -40,9 +39,9 @@ subpartition template(
 
 alter table log_message add constraint log_message_message_type_chk check (message_type in ('I', 'E', 'W'));
 
-create index log_message_message_source_idx on log_message(message_source) local;
-create index log_message_message_type_idx on log_message(message_type) local;
-create index log_message_message_idx on log_message(substr(message, 1, 100)) local;
+create index log_message_message_source_idx on log_message(dtime desc, message_source) local;
+create index log_message_message_type_idx on log_message(dtime desc, message_type) local;
+create index log_message_message_idx on log_message(dtime desc, substr(message, 1, 100)) local;
 
 
 comment on table log_message is 'Лог событий в БД';
